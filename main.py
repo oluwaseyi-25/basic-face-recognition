@@ -1,10 +1,10 @@
-from cProfile import label
 import os
 import tkinter as tk
 import util
 from PIL import Image, ImageTk
 import cv2
 import json
+import datetime
 
 import face_recognition
 import pickle   
@@ -69,10 +69,44 @@ class App():
         self._label.after(20, self.process_webcam)
 
     def login(self) -> None:
-        pass
+        self.login_user_capture = self.most_recent_capture_arr.copy()
+        self.login_user_embed = face_recognition.face_encodings(self.login_user_capture)
+
+        if self.login_user_embed == []:
+            util.msg_box('Error', 'No face detected')
+            return
+        
+        elif len(self.login_user_embed) > 1:
+            util.msg_box('Error', 'Multiple faces detected')
+            return
+        
+        else:
+            self.login_user_embed = self.login_user_embed[0]
+
+            for user_profile in os.listdir(self.db_dir):
+                with open(os.path.join(self.db_dir, user_profile), 'rb') as f:
+                    db_embed = pickle.load(f)
+                
+                distance = face_recognition.face_distance([db_embed], self.login_user_embed)
+                if distance < 0.6:
+                    username = user_profile.split('.')[0]
+                    # TODO: log the user better
+                    self.log(username)
+                    util.msg_box('Success', f'User {username} was logged in successfully')
+                    break
+            else:
+                util.msg_box('Error', 'User not registered')
+                return
 
     def logout(self) -> None:
         pass
+
+    def log(self, username:str) -> None:
+        # TODO: log the user better
+        with open(self.log_path, 'a') as f:
+            self.log_dict[username] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            json.dump(self.log_dict, f)
+
 
     def register_new_user(self) -> None:
         self.register_new_user_window = tk.Toplevel(self.main_window)
