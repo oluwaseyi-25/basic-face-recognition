@@ -3,7 +3,7 @@ import tkinter as tk
 import util
 from PIL import Image, ImageTk
 import cv2
-import json
+import csv
 import datetime
 
 import face_recognition
@@ -15,6 +15,10 @@ REGISTER_WINDOW_GEOMETRY = f'{int(1200*scale)}x{int(520*scale)}+10+20'
 CAMERA_ID = 0
 
 DB_DIR = './db'
+LOG_SCHEMA = ['username', 'timestamp']
+LOG_DIR = './log'
+LOG_PATH = 'log.csv'
+
 
 class App():
     def __init__(self):
@@ -23,10 +27,7 @@ class App():
         self.main_window.title('face_attendance v0.1')
 
         self.login_button_main_window = util.get_button(self.main_window, 'login', 'green', self.login)
-        self.login_button_main_window.place(x=int(750*scale), y=int(200*scale))
-
-        self.logout_button_main_window = util.get_button(self.main_window, 'logout', 'red', self.logout)
-        self.logout_button_main_window.place(x=int(750*scale), y=int(300*scale))
+        self.login_button_main_window.place(x=int(750*scale), y=int(300*scale))
 
         self.register_new_user_button_main_window = util.get_button(self.main_window, 'register new user', 'gray',
                                                                     self.register_new_user, fg='black')
@@ -41,8 +42,8 @@ class App():
         if not os.path.exists(self.db_dir):
             os.mkdir(self.db_dir)
 
-        self.log_dict = {}
-        self.log_path = './log.txt'
+        self.log_path = os.path.join(LOG_DIR, LOG_PATH)
+        self.init_logger(self.log_path)
 
     def run(self) -> None:
         self.main_window.mainloop()
@@ -101,11 +102,25 @@ class App():
     def logout(self) -> None:
         pass
 
+    def init_logger(self, log_path:str)  -> None:
+        if not os.path.exists(LOG_DIR):
+            os.mkdir(LOG_DIR)
+
+        if not os.path.exists(log_path):
+            with open(log_path, 'w') as f:
+                _logger = csv.DictWriter(f, fieldnames=LOG_SCHEMA)
+                _logger.writeheader()
+
     def log(self, username:str) -> None:
         # TODO: log the user better
+        self.log_dict = {}
+
+        self.log_dict['username'] = username
+        self.log_dict['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
         with open(self.log_path, 'a') as f:
-            self.log_dict[username] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            json.dump(self.log_dict, f)
+            _logger = csv.DictWriter(f, fieldnames=LOG_SCHEMA)
+            _logger.writerow(self.log_dict)
 
 
     def register_new_user(self) -> None:
