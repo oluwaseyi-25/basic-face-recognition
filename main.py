@@ -1,27 +1,18 @@
 import os
 import tkinter as tk
-import util
-from PIL import Image, ImageTk
 import cv2
-import csv
-import datetime
-
-import face_recognition
-import pickle   
+from PIL import Image, ImageTk
+import face_app
+import util
 
 scale = 1
 MAIN_WINDOW_GEOMETRY = f'{int(1200*scale)}x{int(520*scale)}+1+10'
 REGISTER_WINDOW_GEOMETRY = f'{int(1200*scale)}x{int(520*scale)}+10+20'
 CAMERA_ID = 0
 
-DB_DIR = './db'
-LOG_SCHEMA = ['username', 'timestamp']
-LOG_DIR = './log'
-LOG_PATH = 'log.csv'
-
 
 class App():
-    def __init__(self):
+    def __init__(self) -> None:
         self.main_window = tk.Tk()
         self.main_window.geometry(MAIN_WINDOW_GEOMETRY)
         self.main_window.title('face_attendance v0.1')
@@ -37,13 +28,6 @@ class App():
         self.webcam_label.place(x=10, y=0, width=int(700*scale), height=int(500*scale))
 
         self.add_webcam(self.webcam_label)
-        
-        self.db_dir = DB_DIR
-        if not os.path.exists(self.db_dir):
-            os.mkdir(self.db_dir)
-
-        self.log_path = os.path.join(LOG_DIR, LOG_PATH)
-        self.init_logger(self.log_path)
 
     def run(self) -> None:
         self.main_window.mainloop()
@@ -58,6 +42,15 @@ class App():
 
 
     def process_webcam(self) -> None:
+        """
+        Continuously captures frames from the webcam and updates the GUI with the latest frame.
+        This method reads a frame from the webcam, converts it to an RGB image, and updates the 
+        label in the GUI with the latest captured image. If the frame capture fails, it displays 
+        an error message and closes the main window.
+        Returns:
+            None
+        """
+      
         ret, frame = self.cap.read()
 
         self.most_recent_capture_arr = frame
@@ -70,59 +63,26 @@ class App():
         self._label.after(20, self.process_webcam)
 
     def login(self) -> None:
-        self.login_user_capture = self.most_recent_capture_arr.copy()
-        self.login_user_embed = face_recognition.face_encodings(self.login_user_capture)
+        try:
+            username = face_app.login(self.most_recent_capture_arr)
 
-        if self.login_user_embed == []:
+        except face_app.No_Face_Detected:
             util.msg_box('Error', 'No face detected')
             return
         
-        elif len(self.login_user_embed) > 1:
+        except face_app.Multiple_Faces_Detected:
             util.msg_box('Error', 'Multiple faces detected')
             return
         
+        except face_app.User_Not_Registered:
+            util.msg_box('Error', 'User not registered')
+            return
+        
         else:
-            self.login_user_embed = self.login_user_embed[0]
-
-            for user_profile in os.listdir(self.db_dir):
-                with open(os.path.join(self.db_dir, user_profile), 'rb') as f:
-                    db_embed = pickle.load(f)
-                
-                distance = face_recognition.face_distance([db_embed], self.login_user_embed)
-                if distance < 0.6:
-                    username = user_profile.split('.')[0]
-                    # TODO: log the user better
-                    self.log(username)
-                    util.msg_box('Success', f'User {username} was logged in successfully')
-                    break
-            else:
-                util.msg_box('Error', 'User not registered')
-                return
-
-    def logout(self) -> None:
-        pass
-
-    def init_logger(self, log_path:str)  -> None:
-        if not os.path.exists(LOG_DIR):
-            os.mkdir(LOG_DIR)
-
-        if not os.path.exists(log_path):
-            with open(log_path, 'w') as f:
-                _logger = csv.DictWriter(f, fieldnames=LOG_SCHEMA)
-                _logger.writeheader()
-
-    def log(self, username:str) -> None:
-        # TODO: log the user better
-        self.log_dict = {}
-
-        self.log_dict['username'] = username
-        self.log_dict['timestamp'] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-
-        with open(self.log_path, 'a') as f:
-            _logger = csv.DictWriter(f, fieldnames=LOG_SCHEMA)
-            _logger.writerow(self.log_dict)
-
-
+            util.msg_box('Success', f'User {username} was logged in successfully')
+            return
+        
+   
     def register_new_user(self) -> None:
         self.register_new_user_window = tk.Toplevel(self.main_window)
         self.register_new_user_window.geometry(REGISTER_WINDOW_GEOMETRY)
@@ -161,19 +121,22 @@ class App():
 
         self.register_new_user_saved_capture = self.most_recent_capture_arr.copy()
 
+
     def accept_button_register_new_user(self) -> None:
         username = self.entry_text_register_new_user.get(1.0, 'end-1c')
-        if username == '':
+        try:
+            face_app.accept_button_register_new_user(username, self.register_new_user_saved_capture)
+
+        except face_app.Invalid_Username:
             util.msg_box('Error', 'Please enter a valid username')
             self.register_new_user_window.destroy()
             return
         
-        embeddings = face_recognition.face_encodings(self.register_new_user_saved_capture)[0]
-        with open(os.path.join(self.db_dir, f'{username}.pickle'), 'wb') as f:
-            pickle.dump(embeddings, f)
+        else:
+            util.msg_box('Success', 'User was registered successfully')
+            self.register_new_user_window.destroy()
+            return
 
-        util.msg_box('Success', 'User was registered successfully')
-        self.register_new_user_window.destroy()
 
     def try_again_button_register_new_user(self) -> None:
         self.register_new_user_window.destroy()
