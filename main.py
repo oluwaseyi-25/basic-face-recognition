@@ -124,7 +124,7 @@ class App():
     def accept_button_register_new_user(self) -> None:
         username = self.entry_text_register_new_user.get(1.0, 'end-1c')
         try:
-            face_app.accept_button_register_new_user(username, self.register_new_user_saved_capture)
+            face_app.register_new_user(self.register_new_user_saved_capture,  first_name=username)
 
         except face_app.Invalid_Username:
             util.msg_box('Error', 'Please enter a valid username')
