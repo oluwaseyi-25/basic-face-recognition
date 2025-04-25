@@ -107,6 +107,7 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
 
     else:
         login_user_embed = login_user_embed[0]
+        print(repr(list(login_user_embed)))
 
         try:
             # TODO: Constrain face search to < 0.6; Get a range of users and confirm if the user is in the range
@@ -120,15 +121,18 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             )
 
             user_id, first_name, l2_confidence = pg_cursor.fetchone()
-            data['user_id'] = user_id
+            print(user_id, first_name, l2_confidence)
+            data["user_id"] = user_id
             data["first_name"] = first_name
             data["l2_confidence"] = l2_confidence
+            data["course"] = "MEE527"
+            data["location"] = "LT1"
             log(**data)
             print(f"User {first_name} logged in successfully")
             return first_name
 
         except Exception as e:
-            print(e)
+            print("Something went wrong", e)
             raise User_Not_Registered("User not registered")
 
 
