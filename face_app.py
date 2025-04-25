@@ -107,7 +107,6 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
 
     else:
         login_user_embed = login_user_embed[0]
-        print(repr(list(login_user_embed)))
 
         try:
             # TODO: Constrain face search to < 0.6; Get a range of users and confirm if the user is in the range
