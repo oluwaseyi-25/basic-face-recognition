@@ -91,13 +91,15 @@ def enroll_face(ws: Server, **biodata):
 
         except Exception as e:
             logging.error(f"Error processing user: {e}")
-            ws.send(json.dumps({"ERR": f"{e}"}))
+            ws.send(json.dumps({"status":"ERR",
+                                "body": f"{e}"}))
 
         else:
             logging.info("Face enrollment successful")
             Image.open(BytesIO(data)).save(biodata["image_filename"])  # Save the image as a JPEG file
             ws.send(json.dumps(
-                {"OK": f"{biodata.get("matric_no")} enrolled successfully"}))
+                {"status":"OK", 
+                 "body": f"{biodata.get("matric_no")} enrolled successfully"}))
 
 def verify_face(ws: Server, **biodata):
     """
@@ -114,7 +116,8 @@ def verify_face(ws: Server, **biodata):
     data = ws.receive()
     if not isinstance(data, bytes):
         logging.error("Invalid data type received")
-        ws.send(json.dumps({"error": "Invalid data type."}))
+        ws.send(json.dumps({"status":"error", 
+                            "body": "Invalid data type."}))
         return
 
     try:
@@ -143,10 +146,12 @@ def verify_face(ws: Server, **biodata):
     except Exception as e:
         logging.error(f"Error processing image: {e}")
         # Placeholder for face verification logic
-        ws.send(json.dumps({"error": "Invalid image data."}))
+        ws.send(json.dumps({"status":"ERR", 
+                            "body": "Invalid image data."}))
 
     else:
-        ws.send(json.dumps({"OK": f"{matric_no} recognized successfully"}))
+        ws.send(json.dumps({"status":"OK", 
+                            "body": f"{matric_no} recognized successfully"}))
     return
 
 def enroll_user(ws: Server, **biodata):
@@ -165,12 +170,15 @@ def enroll_user(ws: Server, **biodata):
         face_app.register_new_user(face_flag=False, **biodata)
     except face_app.Invalid_Username:
         logging.error("Invalid username")
-        ws.send(json.dumps({"ERR": "Invalid username"}))
+        ws.send(json.dumps({"status":"ERR", 
+                            "body": "Invalid username"}))
     except Exception as e:
         logging.error(f"Error processing image: {e}")
-        ws.send(json.dumps({"error": "Invalid image data."}))
+        ws.send(json.dumps({"status":"ERR", 
+                            "body": "Invalid image data."}))
     else:
-        ws.send(json.dumps({"OK": f"{biodata.get("matric_no")} enrolled successfully"}))
+        ws.send(json.dumps({"status":"OK", 
+                            "body": f"{biodata.get("matric_no")} enrolled successfully"}))
     return
 
 def start_class(ws: Server, **class_data) -> None:
@@ -189,10 +197,12 @@ def start_class(ws: Server, **class_data) -> None:
         logging.info("Starting class...")
         face_app.log_class_details(class_data)
     except Exception as e:
-        ws.send(json.dumps({"ERR": f"Error starting class: {e}"}))
+        ws.send(json.dumps({"status":"ERR", 
+                            "body": f"Error starting class: {e}"}))
     else:
         current_class_id = face_app.get_current_class_id(class_data.get("code"))
-        ws.send(json.dumps({"OK": f"Class {current_class_id} started successfully"}))
+        ws.send(json.dumps({"status":"OK", 
+                            "body": f"Class {current_class_id} started successfully"}))
       
 def log_attendance(ws: Server, **attendance_data):
     """
@@ -210,10 +220,12 @@ def log_attendance(ws: Server, **attendance_data):
         face_app.log(**attendance_data)
     except Exception as e:
         logging.error(f"Error logging attendance: {e}")
-        ws.send(json.dumps({"ERR": f"Error logging attendance: {e}"}))
+        ws.send(json.dumps({"status":"ERR", 
+                            "body": f"Error logging attendance: {e}"}))
     else:
         logging.info("Attendance logged successfully")
-        ws.send(json.dumps({"OK": f"Attendance logged successfully"}))
+        ws.send(json.dumps({"status":"OK", 
+                            "body": f"Attendance logged successfully"}))
 
 
 operations = {
@@ -338,7 +350,8 @@ def command(ws: Server):
                 if operation in operations:
                     operations[operation](ws, **json_data)
                 else:
-                    ws.send(json.dumps({"error": "Invalid command."}))
+                    ws.send(json.dumps({"status":"ERR", 
+                                        "body": "Invalid command."}))
             elif isinstance(data, bytes):
                 # Handle binary data (e.g., image)
                 try:
@@ -346,18 +359,23 @@ def command(ws: Server):
                     # image.save("received_image.jpg")  # Save the image as a JPEG file
                     image.show()
                     ws.send(json.dumps(
-                        {"message": "Image received and saved."}))
+                        {"status":"OK", 
+                         "body": "Image received and saved."}))
                 except Exception as e:
                     logging.error(f"Error processing image: {e}")
-                    ws.send(json.dumps({"error": "Invalid image data."}))
+                    ws.send(json.dumps({"status":"ERR", 
+                                        "body": "Invalid image data."}))
             else:
-                ws.send(json.dumps({"error": "Unsupported data type."}))
+                ws.send(json.dumps({"status":"ERR", 
+                                    "body": "Unsupported data type."}))
         except json.JSONDecodeError as e:
             logging.error(f"JSON decode error: {e}")
-            ws.send(json.dumps({"error": "Invalid JSON data."}))
+            ws.send(json.dumps({"status":"ERR", 
+                                "body": "Invalid JSON data."}))
         except Exception as e:
             logging.error(f"Error processing data: {e}")
-            ws.send(json.dumps({"error": str(e)}))
+            ws.send(json.dumps({"status":"ERR", 
+                                "body": str(e)}))
 
 
 if __name__ == "__main__":
