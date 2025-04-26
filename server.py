@@ -9,6 +9,7 @@ from PIL import Image
 from io import BytesIO
 import logging
 import face_app
+from datetime import datetime
 from simple_websocket import Server
 
 
@@ -23,86 +24,127 @@ def base64_to_img(base64_str: str) -> np.matrix:
         raise ValueError("Invalid base64 image data")
     return img_arr_bgr
 
-def bytes_to_img(data: bytes) -> np.matrix:
-    try:
-        image = Image.open(BytesIO(data))
-        image.show()
-        image.save("received_image.jpg")  # Save the image as a JPEG file
-        # Convert the image to a NumPy array and then to BGR format for OpenCV
-        image_arr = np.array(image)
-        image_arr_bgr = cv2.cvtColor(image_arr, cv2.COLOR_RGB2BGR)
-    except Exception as e:
-        logging.error(f"Error converting bytes to image: {e}")
-        raise ValueError("Invalid image data")
-    return image_arr_bgr
+current_class_id:int = 0
 
-def enroll_face(ws:Server, **biodata):
+def enroll_face(ws: Server, **biodata):
     logging.info("Enrolling face...")
     data = ws.receive()
     if isinstance(data, bytes):
         try:
             image = Image.open(BytesIO(data))
-            image.save("face_to_enroll.jpg")  # Save the image as a JPEG file
+            # Convert the image to a NumPy array and then to BGR format for OpenCV
+            image_arr = np.array(image)
+            image_arr_bgr = cv2.cvtColor(image_arr, cv2.COLOR_RGB2BGR)
+            biodata["image_filename"] = f"./static/enrolled/{biodata.get('matric_no', 'face_to_verify')}_{datetime.now()}.jpg"
             image.show()
-            ws.send(json.dumps({"message": "Image received and saved."}))
-        except Exception as e:
-            logging.error(f"Error processing image: {e}")
-            ws.send(json.dumps({"error": "Invalid image data."}))
+            face_app.register_new_user(image_arr_bgr, face_flag=True, **biodata)
 
-def verify_face(ws:Server, **biodata):
+        except face_app.No_Face_Detected:
+            logging.error("No face detected")
+            ws.send({"ERR": "No face detected"})
+
+        except face_app.Multiple_Faces_Detected:
+            logging.error("Multiple faces detected")
+            ws.send({"ERR": "Multiple faces detected"})
+
+        except Exception as e:
+            logging.error(f"Error processing user: {e}")
+            ws.send(json.dumps({"ERR": f"{e}"}))
+
+        else:
+            logging.info("Face enrollment successful")
+            Image.open(BytesIO(data)).save(biodata["image_filename"])  # Save the image as a JPEG file
+            ws.send(json.dumps(
+                {"OK": f"{biodata.get("matric_no")} enrolled successfully"}))
+
+def verify_face(ws: Server, **biodata):
     logging.info("Verifying face...")
     data = ws.receive()
     if not isinstance(data, bytes):
         logging.error("Invalid data type received")
         ws.send(json.dumps({"error": "Invalid data type."}))
         return
-    
+
     try:
-        img_arr = bytes_to_img(data)
-        username = face_app.login(img_arr, **biodata)
+        image = Image.open(BytesIO(data))
+        image.show()
+        biodata["image_filename"] = f"./static/cache/{biodata.get('matric_no', 'face_to_verify')}_{datetime.strftime(datetime.now(), format="%Y%m%d_%H%M%S")}.jpg"
+        image.save(biodata["image_filename"])  # Save the image as a JPEG file
+        # Convert the image to a NumPy array and then to BGR format for OpenCV
+        image_arr = np.array(image)
+        image_arr_bgr = cv2.cvtColor(image_arr, cv2.COLOR_RGB2BGR)
+        # TODO: Use matric number
+        matric_no = face_app.login(image_arr_bgr, **biodata)
 
     except face_app.No_Face_Detected:
         logging.error("No face detected")
-        ws.send({"message": "No face detected"})
+        ws.send({"ERR": "No face detected"})
 
     except face_app.Multiple_Faces_Detected:
         logging.error("Multiple faces detected")
-        ws.send({"message": "Multiple faces detected"})
+        ws.send({"ERR": "Multiple faces detected"})
 
     except face_app.User_Not_Registered:
         logging.error("User not registered")
-        ws.send({"message": "User not registered"})
+        ws.send({"ERR": "User not registered"})
 
     except Exception as e:
         logging.error(f"Error processing image: {e}")
-        ws.send(json.dumps({"error": "Invalid image data."}))  # Placeholder for face verification logic 
-    
+        # Placeholder for face verification logic
+        ws.send(json.dumps({"error": "Invalid image data."}))
+
     else:
-        ws.send(json.dumps({"message": f"{username} recognized successfully"}))
+        ws.send(json.dumps({"OK": f"{matric_no} recognized successfully"}))
     return
 
-def enroll_user(ws:Server, **biodata):
-    logging.info("Enrolling user...")
-    pass  # Placeholder for user enrollment logic
+def enroll_user(ws: Server, **biodata):
+    logging.info(f"Enrolling user {biodata.get("matric_no")}...")
+    try:
+        face_app.register_new_user(face_flag=False, **biodata)
+    except face_app.Invalid_Username:
+        logging.error("Invalid username")
+        ws.send(json.dumps({"ERR": "Invalid username"}))
+    except Exception as e:
+        logging.error(f"Error processing image: {e}")
+        ws.send(json.dumps({"error": "Invalid image data."}))
+    else:
+        ws.send(json.dumps({"OK": f"{biodata.get("matric_no")} enrolled successfully"}))
+    return
 
-def start_class(ws:Server, **class_data):
-    logging.info("Starting class...")
-    pass  # Placeholder for starting a class logic
-
-def log_attendance(ws:Server, **attendance_data):
+def start_class(ws: Server, **class_data) -> None:
+    global current_class_id
+    try:
+        logging.info("Starting class...")
+        face_app.log_class_details(class_data)
+    except Exception as e:
+        ws.send(json.dumps({"ERR": f"Error starting class: {e}"}))
+    else:
+        current_class_id = face_app.get_current_class_id(class_data.get("code"))
+        ws.send(json.dumps({"OK": f"Class {current_class_id} started successfully"}))
+      
+def log_attendance(ws: Server, **attendance_data):
     logging.info("Logging attendance...")
-    pass  # Placeholder for logging attendance logic
+    try:
+        face_app.log(**attendance_data)
+    except Exception as e:
+        logging.error(f"Error logging attendance: {e}")
+        ws.send(json.dumps({"ERR": f"Error logging attendance: {e}"}))
+    else:
+        logging.info("Attendance logged successfully")
+        ws.send(json.dumps({"OK": f"Attendance logged successfully"}))
+
 
 operations = {
-    "enroll_face":enroll_face,
-    "verify_face":verify_face,
-    "enroll_user":enroll_user,
-    "start_class":start_class,
-    "log_attendance":log_attendance
+    "enroll_face": enroll_face,
+    "verify_face": verify_face,
+    "enroll_user": enroll_user,
+    "start_class": start_class,
+    "log_attendance": log_attendance
 }
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s - %(levelname)s - %(message)s')
 
 
 app = Flask(__name__)
@@ -110,19 +152,23 @@ app.config['SECRET_KEY'] = 'secret!'
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 15}
 socket = Sock(app)
 
+
 @app.errorhandler(500)
 def internal_error(error):
     logging.error(f"Server Error: {error}")
     return "Internal Server Error", 500
+
 
 @app.errorhandler(404)
 def not_found_error(error):
     logging.warning(f"Not Found: {error}")
     return "Not Found", 404
 
+
 @app.route("/")
 def home():
     return "Welcome to the Basic Face Recognition Server!"
+
 
 @app.route("/recognize", methods=["POST"])
 def recognize():
@@ -144,10 +190,11 @@ def recognize():
     else:
         return jsonify({"message": f"{username} recognized successfully"})
 
+
 @app.route("/register", methods=["POST"])
 def register():
     # Placeholder for face recognition logic
-    data:dict = request.get_json()
+    data: dict = request.get_json()
     image_data = data.pop("image_data")
 
     try:
@@ -161,18 +208,19 @@ def register():
             }
         )
 
+
 @socket.route('/command')
-def command(ws:Server):
+def command(ws: Server):
     logging.info("WebSocket connection established.")
     while True:
         data = ws.receive()
         try:
             if isinstance(data, str):
                 # Handle JSON data
-                json_data:dict = json.loads(data)
-                logging.info({"parsed_data":json_data})
+                json_data: dict = json.loads(data)
+                logging.info({"parsed_data": json_data})
 
-                operation:str = json_data.get("cmd")
+                operation: str = json_data.get("cmd")
                 json_data.pop("cmd")
                 if operation in operations:
                     operations[operation](ws, **json_data)
@@ -184,7 +232,8 @@ def command(ws:Server):
                     image = Image.open(BytesIO(data))
                     # image.save("received_image.jpg")  # Save the image as a JPEG file
                     image.show()
-                    ws.send(json.dumps({"message": "Image received and saved."}))
+                    ws.send(json.dumps(
+                        {"message": "Image received and saved."}))
                 except Exception as e:
                     logging.error(f"Error processing image: {e}")
                     ws.send(json.dumps({"error": "Invalid image data."}))
