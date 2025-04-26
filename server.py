@@ -1,3 +1,23 @@
+"""
+server.py
+
+This module implements a Flask-based server with WebSocket support for real-time communication. It provides endpoints for face recognition, user registration, and attendance logging.
+
+Features:
+- WebSocket integration for real-time operations.
+- REST API endpoints for face recognition and user registration.
+- Integration with the face_app module for database and face recognition operations.
+- Error handling for common issues like no face detected, multiple faces detected, and unregistered users.
+
+Dependencies:
+- Flask
+- flask_sock
+- face_recognition
+- psycopg2
+- OpenCV (cv2)
+- PIL (Pillow)
+"""
+
 from flask import Flask, request, jsonify
 from flask_sock import Sock
 
@@ -14,6 +34,18 @@ from simple_websocket import Server
 
 
 def base64_to_img(base64_str: str) -> np.matrix:
+    """
+    Convert a base64-encoded string to an OpenCV-compatible image (NumPy array).
+
+    Args:
+        base64_str (str): The base64-encoded string representing the image.
+
+    Returns:
+        np.matrix: The decoded image in BGR format.
+
+    Raises:
+        ValueError: If the base64 string is invalid or cannot be decoded.
+    """
     try:
         img_data = base64.b64decode(base64_str)
         img_pil = Image.open(BytesIO(img_data))
@@ -27,6 +59,16 @@ def base64_to_img(base64_str: str) -> np.matrix:
 current_class_id:int = 0
 
 def enroll_face(ws: Server, **biodata):
+    """
+    Enroll a user's face by receiving an image via WebSocket.
+
+    Args:
+        ws (Server): The WebSocket connection.
+        biodata (dict): User biodata including matriculation number and other details.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     logging.info("Enrolling face...")
     data = ws.receive()
     if isinstance(data, bytes):
@@ -58,6 +100,16 @@ def enroll_face(ws: Server, **biodata):
                 {"OK": f"{biodata.get("matric_no")} enrolled successfully"}))
 
 def verify_face(ws: Server, **biodata):
+    """
+    Verify a user's face by matching it against the database.
+
+    Args:
+        ws (Server): The WebSocket connection.
+        biodata (dict): User biodata including matriculation number and other details.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     logging.info("Verifying face...")
     data = ws.receive()
     if not isinstance(data, bytes):
@@ -98,6 +150,16 @@ def verify_face(ws: Server, **biodata):
     return
 
 def enroll_user(ws: Server, **biodata):
+    """
+    Enroll a new user without face data.
+
+    Args:
+        ws (Server): The WebSocket connection.
+        biodata (dict): User biodata including matriculation number and other details.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     logging.info(f"Enrolling user {biodata.get("matric_no")}...")
     try:
         face_app.register_new_user(face_flag=False, **biodata)
@@ -112,6 +174,16 @@ def enroll_user(ws: Server, **biodata):
     return
 
 def start_class(ws: Server, **class_data) -> None:
+    """
+    Start a new class session and log its details in the database.
+
+    Args:
+        ws (Server): The WebSocket connection.
+        class_data (dict): Details of the class including course code, venue, and start time.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     global current_class_id
     try:
         logging.info("Starting class...")
@@ -123,6 +195,16 @@ def start_class(ws: Server, **class_data) -> None:
         ws.send(json.dumps({"OK": f"Class {current_class_id} started successfully"}))
       
 def log_attendance(ws: Server, **attendance_data):
+    """
+    Log attendance for a class session.
+
+    Args:
+        ws (Server): The WebSocket connection.
+        attendance_data (dict): Attendance details including matriculation number and verification status.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     logging.info("Logging attendance...")
     try:
         face_app.log(**attendance_data)
@@ -172,6 +254,15 @@ def home():
 
 @app.route("/recognize", methods=["POST"])
 def recognize():
+    """
+    REST API endpoint to recognize a user's face.
+
+    Expects:
+        JSON payload with base64-encoded image data and user details.
+
+    Returns:
+        JSON response indicating success or error.
+    """
     # Placeholder for face recognition logic
     data = request.get_json()
     image_data = data.pop("image_data")
@@ -193,6 +284,15 @@ def recognize():
 
 @app.route("/register", methods=["POST"])
 def register():
+    """
+    REST API endpoint to register a new user.
+
+    Expects:
+        JSON payload with base64-encoded image data and user details.
+
+    Returns:
+        JSON response indicating success or error.
+    """
     # Placeholder for face recognition logic
     data: dict = request.get_json()
     image_data = data.pop("image_data")
@@ -211,6 +311,19 @@ def register():
 
 @socket.route('/command')
 def command(ws: Server):
+    """
+    WebSocket endpoint to handle various commands like enrolling faces, verifying faces, and logging attendance.
+
+    Args:
+        ws (Server): The WebSocket connection.
+
+    Handles:
+        - JSON commands for operations.
+        - Binary data for image processing.
+
+    Sends:
+        JSON response indicating success or error.
+    """
     logging.info("WebSocket connection established.")
     while True:
         data = ws.receive()

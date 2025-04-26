@@ -1,3 +1,23 @@
+"""
+face_app.py
+
+This module handles database operations, face recognition, and user management
+for the face recognition system. It integrates with PostgreSQL for data storage
+and uses the `face_recognition` library for face encoding and matching.
+
+Features:
+- Database integration for storing user and attendance data.
+- Face recognition using the `face_recognition` library.
+- Custom exceptions for specific error cases.
+- Utility functions for retrieving IDs from the database.
+
+Dependencies:
+- face_recognition
+- psycopg2
+- OpenCV (cv2)
+- NumPy
+"""
+
 import os
 import face_recognition
 import pickle
@@ -48,32 +68,59 @@ if not os.path.exists(os.path.join(LOG_DIR, LOG_PATH)):
 current_class_id:int = 0
 
 def get_department_id(department: str | None) -> int:
+    """
+    Get the department ID from the database.
+
+    Args:
+        department (str | None): The name of the department.
+
+    Returns:
+        int: The department ID.
+    """
     if department is None:
         return 0
     pg_cursor.execute(
-        "SELECT id FROM departments WHERE name LIKE %s", (department,))
+        "SELECT id FROM departments WHERE name = %s", (department,))
     return pg_cursor.fetchall()[0][0]
 
 def get_college_id(college: str | None) -> int:
+    """
+    Get the college ID from the database.
+
+    Args:
+        college (str | None): The name of the college.
+
+    Returns:
+        int: The college ID.
+    """
     if college is None:
         return 0
-    pg_cursor.execute("SELECT id FROM colleges WHERE name LIKE %s", (college,))
+    pg_cursor.execute("SELECT id FROM colleges WHERE name = %s", (college,))
     return pg_cursor.fetchall()[0][0]
 
 def get_student_id(matric_no: str) -> int:
+    """
+    Get the student ID from the database.
+
+    Args:
+        matric_no (str): The matriculation number of the student.
+
+    Returns:
+        int: The student ID.
+    """
     pg_cursor.execute(
-        "SELECT id FROM students_biodata WHERE matric_no LIKE %s", (matric_no,)
+        "SELECT id FROM students_biodata WHERE matric_no = %s", (matric_no,)
     )
     return pg_cursor.fetchall()[0][0]
 
 def get_location_id(location: str) -> int:
     pg_cursor.execute(
-        "SELECT id FROM locations WHERE name LIKE %s", (location,))
+        "SELECT id FROM locations WHERE name = %s", (location,))
     return pg_cursor.fetchall()[0][0]
 
 def get_course_id(course: str) -> int:
     pg_cursor.execute(
-        "SELECT id FROM courses WHERE course_code LIKE %s", (course,))
+        "SELECT id FROM courses WHERE course_code = %s", (course,))
     return pg_cursor.fetchall()[0][0]
 
 def get_current_class_id(course_code: str | None) -> int:
@@ -82,7 +129,16 @@ def get_current_class_id(course_code: str | None) -> int:
     pg_cursor.execute("SELECT MAX(id) FROM classes WHERE course_code = %s", (course_code,))
     return pg_cursor.fetchall()[0][0]
 
-def log(**data) -> None:
+def log(data: dict) -> None:
+    """
+    Log attendance data to the database.
+
+    Args:
+        data (dict): Attendance data to log.
+
+    Raises:
+        Exception: If a database error occurs.
+    """
     global current_class_id
     data["class_id"] = current_class_id
     data["timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -104,6 +160,21 @@ def log(**data) -> None:
         raise Exception(f"Database error: {e}")
 
 def login(most_recent_capture_arr: Mat, **data) -> str:
+    """
+    Authenticate a user by matching their face encoding.
+
+    Args:
+        most_recent_capture_arr (Mat): The most recent face capture as a NumPy array.
+        data (dict): Additional data for logging.
+
+    Returns:
+        str: The matriculation number of the authenticated user.
+
+    Raises:
+        No_Face_Detected: If no face is detected in the image.
+        Multiple_Faces_Detected: If multiple faces are detected in the image.
+        User_Not_Registered: If the user is not found in the database.
+    """
     login_user_capture = most_recent_capture_arr.copy()
     login_user_embed = face_recognition.face_encodings(login_user_capture)
 
@@ -144,6 +215,19 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             raise User_Not_Registered("User not registered")
 
 def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bool = False, **biodata) -> None:
+    """
+    Register a new user in the system.
+
+    Args:
+        register_new_user_saved_capture (Mat): The face capture as a NumPy array.
+        face_flag (bool): Whether to register the face encoding.
+        biodata (dict): User biodata.
+
+    Raises:
+        No_Face_Detected: If no face is detected in the image.
+        Multiple_Faces_Detected: If multiple faces are detected in the image.
+        Invalid_Username: If the username is invalid or empty.
+    """
     biodata["department"] = get_department_id(biodata.get("department"))
     biodata["college"] = get_college_id(biodata.get("college"))
 
@@ -201,24 +285,38 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
             biodata,
         )
 
-    pg_cursor.execute("COMMIT;")
+    pg_db.commit()
+    
 
     with open(os.path.join(DB_DIR, f"{biodata.get("first_name")}.pickle"), "wb") as f:
         pickle.dump(new_user_embed, f)
 
 def log_class_details(class_details: dict) -> None:
-    class_details["location_id"] = get_location_id(class_details.get("venue"))
+    """
+    Log class details to the database.
+
+    Args:
+        class_details (dict): Details of the class to log.
+
+    Raises:
+        Exception: If a database error occurs.
+    """
     class_details["start_time"] = class_details.get("start_time").replace(" ", ":00 ")
-    pg_cursor.execute(
-        """
-        INSERT INTO classes (course_code, venue, start_time, dept, level, auth_mode, duration)
-        VALUES (%(code)s, %(venue)s, %(start_time)s, %(dept)s, %(level)s, %(auth_mode)s, %(duration)s);
-        """,
-        class_details,
-    )
-    pg_cursor.execute("COMMIT;")
+    try:
+        pg_cursor.execute(
+            """
+            INSERT INTO classes (course_code, venue, start_time, dept, level, auth_mode, duration)
+            VALUES (%(code)s, %(venue)s, %(start_time)s, %(dept)s, %(level)s, %(auth_mode)s, %(duration)s);
+            """,
+            class_details,
+        )
+        pg_db.commit()
+        
+    except psycopg2.Error as e:
+        pg_db.rollback()
+        raise Exception(f"Database error: {e}")
     global current_class_id
     current_class_id = get_current_class_id(class_details.get("code"))
     return current_class_id
 
-    
+
