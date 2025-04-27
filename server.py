@@ -151,7 +151,7 @@ def verify_face(ws: Server, **biodata):
 
     else:
         ws.send(json.dumps({"status":"OK", 
-                            "body": f"{matric_no} recognized successfully"}))
+                            "body": f"{matric_no}"}))
     return
 
 def enroll_user(ws: Server, **biodata):

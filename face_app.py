@@ -52,16 +52,6 @@ if not os.path.exists(DB_DIR):
 pg_db = psycopg2.connect("dbname=face_db user=postgres password=1234")
 pg_cursor = pg_db.cursor()
 
-LOG_DIR = "./log"
-if not os.path.exists(LOG_DIR):
-    os.mkdir(LOG_DIR)
-
-LOG_PATH = "log.csv"
-LOG_SCHEMA = ["username", "timestamp"]
-if not os.path.exists(os.path.join(LOG_DIR, LOG_PATH)):
-    with open(os.path.join(LOG_DIR, LOG_PATH), "w") as f:
-        _logger = csv.DictWriter(f, fieldnames=LOG_SCHEMA)
-        _logger.writeheader()
 
 # TODO: Error handling for database connection
 
@@ -129,7 +119,7 @@ def get_current_class_id(course_code: str | None) -> int:
     pg_cursor.execute("SELECT MAX(id) FROM classes WHERE course_code = %s", (course_code,))
     return pg_cursor.fetchall()[0][0]
 
-def log(data: dict) -> None:
+def log(**data) -> None:
     """
     Log attendance data to the database.
 
@@ -141,16 +131,18 @@ def log(data: dict) -> None:
     """
     global current_class_id
     data["class_id"] = current_class_id
-    data["timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    data["log_timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     data["image_url"] = data.get("image_url")
+    data["verified"] = data.get("verified", False)
+    data["scan_timestamp"] = data.get("scan_timestamp", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     print(data)
     try:
         pg_cursor.execute(
             """
             INSERT INTO attendance_log 
-            (matric_no, class_id, level, department, verified, timestamp, image_url)
+            (matric_no, class_id, level, department, verified, scan_timestamp, log_timestamp, image_url)
             VALUES 
-            (%(matric_no)s, %(class_id)s, %(level)s, %(dept)s, %(verified)s, %(timestamp)s, %(image_url)s);
+            (%(matric_no)s, %(class_id)s, %(level)s, %(dept)s, %(verified)s, %(scan_timestamp)s, %(log_timestamp)s, %(image_url)s);
             """,
             data,
         )
@@ -203,8 +195,7 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             data["user_id"] = user_id
             data["first_name"] = matric_no
             data["l2_confidence"] = l2_confidence
-            data["course"] = "MEE527"
-            data["location"] = "LT1"
+            data["class_id"] = current_class_id
             log(**data)
             return matric_no
         except psycopg2.Error as e:
@@ -302,11 +293,12 @@ def log_class_details(class_details: dict) -> None:
         Exception: If a database error occurs.
     """
     class_details["start_time"] = class_details.get("start_time").replace(" ", ":00 ")
+    class_details["date"] = datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         pg_cursor.execute(
             """
-            INSERT INTO classes (course_code, venue, start_time, dept, level, auth_mode, duration)
-            VALUES (%(code)s, %(venue)s, %(start_time)s, %(dept)s, %(level)s, %(auth_mode)s, %(duration)s);
+            INSERT INTO classes (course_code, venue, start_time, dept, level, auth_mode, duration, date)
+            VALUES (%(code)s, %(venue)s, %(start_time)s, %(dept)s, %(level)s, %(auth_mode)s, %(duration)s, %(date)s);
             """,
             class_details,
         )
