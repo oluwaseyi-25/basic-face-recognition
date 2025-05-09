@@ -94,13 +94,23 @@
             // Download CSV
             const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
             const downloadLink = document.createElement("a");
-            downloadLink.download = filename;
+            downloadLink.download = filename || "attendance_data.csv"; // Fallback filename
             downloadLink.href = URL.createObjectURL(csvFile);
             downloadLink.style.display = "none";
             document.body.appendChild(downloadLink);
             downloadLink.click();
             document.body.removeChild(downloadLink);
         }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            const exportButton = document.getElementById("export");
+            const tableRows = document.querySelectorAll("#attendance-table tbody tr");
+
+            if (tableRows.length === 0) {
+                exportButton.disabled = true;
+                exportButton.title = "No data to export";
+            }
+        });
     </script>
 
 </head>
