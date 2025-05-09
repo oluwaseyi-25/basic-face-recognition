@@ -18,7 +18,7 @@ Dependencies:
 - PIL (Pillow)
 """
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from flask_sock import Sock
 
 import base64
@@ -31,6 +31,7 @@ import logging
 import face_app
 from datetime import datetime
 from simple_websocket import Server
+import psycopg2
 
 
 def base64_to_img(base64_str: str) -> np.matrix:
@@ -128,20 +129,19 @@ def verify_face(ws: Server, **biodata):
         # Convert the image to a NumPy array and then to BGR format for OpenCV
         image_arr = np.array(image)
         image_arr_bgr = cv2.cvtColor(image_arr, cv2.COLOR_RGB2BGR)
-        # TODO: Use matric number
         matric_no = face_app.login(image_arr_bgr, **biodata)
 
     except face_app.No_Face_Detected:
         logging.error("No face detected")
-        ws.send({"ERR": "No face detected"})
+        ws.send({"status":"ERR", "body": "No face detected", "verified": False})
 
     except face_app.Multiple_Faces_Detected:
         logging.error("Multiple faces detected")
-        ws.send({"ERR": "Multiple faces detected"})
+        ws.send({"status":"ERR", "body": "Multiple faces detected", "verified": False})
 
     except face_app.User_Not_Registered:
         logging.error("User not registered")
-        ws.send({"ERR": "User not registered"})
+        ws.send({"status":"ERR", "body": "User not registered", "verified": False})
 
     except Exception as e:
         logging.error(f"Error processing image: {e}")
@@ -151,7 +151,12 @@ def verify_face(ws: Server, **biodata):
 
     else:
         ws.send(json.dumps({"status":"OK", 
-                            "body": f"{matric_no}"}))
+                            "body": f"{matric_no}",
+                            "verified": True
+                            }
+                          )
+               )
+        logging.info(f"Face verification successful for {matric_no}")
     return
 
 def enroll_user(ws: Server, **biodata):
@@ -240,7 +245,6 @@ operations = {
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
-
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'secret!'
 app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 15}
@@ -259,10 +263,36 @@ def not_found_error(error):
     return "Not Found", 404
 
 
-@app.route("/")
-def home():
-    return "Welcome to the Basic Face Recognition Server!"
+@app.route('/')
+def index():
+    return render_template('index.html', selected_date='', course_code='', no_data=False)
 
+@app.route('/attendance', methods=['POST'])
+def attendance():
+    selected_date = request.form.get('selected_date')
+    selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
+    formatted_date = selected_date_obj.strftime('%Y-%m-%d')
+
+    course_code = request.form.get('course_code')
+
+    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    cursor = conn.cursor()
+
+    cursor.execute("""
+                   SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time) 
+                   FROM attendance_log a
+                   INNER JOIN classes ON a.class_id = classes.id
+                   WHERE DATE(log_timestamp) = %s
+                     AND course_code = %s
+                   """, (formatted_date, course_code))
+    attendance_data = cursor.fetchall()
+
+    conn.close()
+
+    if not attendance_data:
+        return render_template('index.html', selected_date=selected_date, course_code=course_code, no_data=True)
+    
+    return render_template('index.html', selected_date=selected_date, course_code=course_code, attendance_data=attendance_data)
 
 @app.route("/recognize", methods=["POST"])
 def recognize():

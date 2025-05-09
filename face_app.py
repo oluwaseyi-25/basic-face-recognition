@@ -21,7 +21,6 @@ Dependencies:
 import os
 import face_recognition
 import pickle
-import csv
 import datetime
 from cv2 import Mat
 from numpy import mat
@@ -52,8 +51,6 @@ if not os.path.exists(DB_DIR):
 pg_db = psycopg2.connect("dbname=face_db user=postgres password=1234")
 pg_cursor = pg_db.cursor()
 
-
-# TODO: Error handling for database connection
 
 current_class_id:int = 0
 
@@ -168,7 +165,8 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
         User_Not_Registered: If the user is not found in the database.
     """
     login_user_capture = most_recent_capture_arr.copy()
-    login_user_embed = face_recognition.face_encodings(login_user_capture)
+    login_user_embed = face_recognition.face_encodings(login_user_capture,
+                                                       num_jitters=4)
 
     if login_user_embed == []:
         raise No_Face_Detected("No face detected")
@@ -184,16 +182,18 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             pg_cursor.execute(
                 """
                 SELECT id, matric_no, SQRT(face_embed <-> %s) AS l2_confidence FROM public.students_biodata 
-	            ORDER BY l2_confidence
-	            LIMIT 1;
+                WHERE matric_no == %s;
                 """,
-                (repr(list(login_user_embed)),),
+                (repr(list(login_user_embed)), data.get("matric_no")),
             )
 
             user_id, matric_no, l2_confidence = pg_cursor.fetchone()
+            if not any([user_id, matric_no, l2_confidence]):
+                raise User_Not_Registered("User not registered")
+            
             print(user_id, matric_no, l2_confidence)
             data["user_id"] = user_id
-            data["first_name"] = matric_no
+            data["matric_no"] = matric_no
             data["l2_confidence"] = l2_confidence
             data["class_id"] = current_class_id
             log(**data)
