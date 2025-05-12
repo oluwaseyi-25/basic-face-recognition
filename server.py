@@ -98,9 +98,8 @@ def enroll_face(ws: Server, **biodata):
         else:
             logging.info("Face enrollment successful")
             Image.open(BytesIO(data)).save(biodata["image_filename"])  # Save the image as a JPEG file
-            ws.send(json.dumps(
-                {"status":"OK", 
-                 "body": f"{biodata.get("matric_no")} enrolled successfully"}))
+            ws.send(json.dumps({"status":"OK",  
+                                "body": f"{biodata.get('matric_no')} enrolled successfully"}))
 
 def verify_face(ws: Server, **biodata):
     """
@@ -124,7 +123,7 @@ def verify_face(ws: Server, **biodata):
     try:
         image = Image.open(BytesIO(data))
         image.show()
-        biodata["image_filename"] = f"./static/cache/{biodata.get('matric_no', 'face_to_verify')}_{datetime.strftime(datetime.now(), format="%Y%m%d_%H%M%S")}.jpg"
+        biodata["image_filename"] = f"./static/cache/{biodata.get('matric_no', 'face_to_verify')}_{datetime.strftime(datetime.now(), format='%Y%m%d_%H%M%S')}.jpg"
         image.save(biodata["image_filename"])  # Save the image as a JPEG file
         # Convert the image to a NumPy array and then to BGR format for OpenCV
         image_arr = np.array(image)
@@ -170,7 +169,7 @@ def enroll_user(ws: Server, **biodata):
     Sends:
         JSON response indicating success or error.
     """
-    logging.info(f"Enrolling user {biodata.get("matric_no")}...")
+    logging.info(f"Enrolling user {biodata.get('matric_no')}...")
     try:
         face_app.register_new_user(face_flag=False, **biodata)
     except face_app.Invalid_Username:
@@ -183,7 +182,7 @@ def enroll_user(ws: Server, **biodata):
                             "body": "Invalid image data."}))
     else:
         ws.send(json.dumps({"status":"OK", 
-                            "body": f"{biodata.get("matric_no")} enrolled successfully"}))
+                            "body": f"{biodata.get('matric_no')} enrolled successfully"}))
     return
 
 def start_class(ws: Server, **class_data) -> None:
@@ -346,7 +345,7 @@ def register():
     else:
         return jsonify(
             {
-                "message": f"{data['first_name']+" "+data['last_name']} registered successfully"
+                "message": f"{data['first_name']+' '+data['last_name']} registered successfully"
             }
         )
 
