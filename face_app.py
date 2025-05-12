@@ -26,6 +26,7 @@ from cv2 import Mat
 from numpy import mat
 import psycopg2
 from psycopg.types import none
+from tensorflow.python.keras.regularizers import l2
 
 
 class No_Face_Detected(Exception):
@@ -48,11 +49,15 @@ DB_DIR = "./db"
 if not os.path.exists(DB_DIR):
     os.mkdir(DB_DIR)
 
+THRESHOLD = 0.65
+
+
 pg_db = psycopg2.connect("dbname=face_db user=postgres password=1234")
 pg_cursor = pg_db.cursor()
 
 
-current_class_id:int = 0
+current_class_id: int = 0
+
 
 def get_department_id(department: str | None) -> int:
     """
@@ -70,6 +75,7 @@ def get_department_id(department: str | None) -> int:
         "SELECT id FROM departments WHERE code = %s", (department,))
     return pg_cursor.fetchall()[0][0]
 
+
 def get_college_id(college: str | None) -> int:
     """
     Get the college ID from the database.
@@ -84,6 +90,7 @@ def get_college_id(college: str | None) -> int:
         return 0
     pg_cursor.execute("SELECT id FROM colleges WHERE name = %s", (college,))
     return pg_cursor.fetchall()[0][0]
+
 
 def get_student_id(matric_no: str) -> int:
     """
@@ -100,21 +107,26 @@ def get_student_id(matric_no: str) -> int:
     )
     return pg_cursor.fetchall()[0][0]
 
+
 def get_location_id(location: str) -> int:
     pg_cursor.execute(
         "SELECT id FROM locations WHERE name = %s", (location,))
     return pg_cursor.fetchall()[0][0]
+
 
 def get_course_id(course: str) -> int:
     pg_cursor.execute(
         "SELECT id FROM courses WHERE course_code = %s", (course,))
     return pg_cursor.fetchall()[0][0]
 
+
 def get_current_class_id(course_code: str | None) -> int:
     if course_code is None:
         return 0
-    pg_cursor.execute("SELECT MAX(id) FROM classes WHERE course_code = %s", (course_code,))
+    pg_cursor.execute(
+        "SELECT MAX(id) FROM classes WHERE course_code = %s", (course_code,))
     return pg_cursor.fetchall()[0][0]
+
 
 def log(**data) -> None:
     """
@@ -128,10 +140,12 @@ def log(**data) -> None:
     """
     global current_class_id
     data["class_id"] = current_class_id
-    data["log_timestamp"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data["image_url"] = data.get("image_url")
+    data["log_timestamp"] = datetime.datetime.now().strftime(
+        "%Y-%m-%d %H:%M:%S.%f")
+    data["image_url"] = data.get("image_filename")
     data["verified"] = data.get("verified", False)
-    data["scan_timestamp"] = data.get("scan_timestamp", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    data["scan_timestamp"] = data.get(
+        "scan_timestamp", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
     print(data)
     try:
         pg_cursor.execute(
@@ -147,6 +161,7 @@ def log(**data) -> None:
     except psycopg2.Error as e:
         pg_db.rollback()
         raise Exception(f"Database error: {e}")
+
 
 def login(most_recent_capture_arr: Mat, **data) -> str:
     """
@@ -182,7 +197,9 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             pg_cursor.execute(
                 """
                 SELECT id, matric_no, SQRT(face_embed <-> %s) AS l2_confidence FROM public.students_biodata 
-                WHERE matric_no == %s;
+                WHERE matric_no = '%s'
+                ORDER BY l2_confidence ASC
+                LIMIT 1;
                 """,
                 (repr(list(login_user_embed)), data.get("matric_no")),
             )
@@ -190,20 +207,23 @@ def login(most_recent_capture_arr: Mat, **data) -> str:
             user_id, matric_no, l2_confidence = pg_cursor.fetchone()
             if not any([user_id, matric_no, l2_confidence]):
                 raise User_Not_Registered("User not registered")
-            
+
             print(user_id, matric_no, l2_confidence)
+            data["verified"] = l2_confidence < THRESHOLD
             data["user_id"] = user_id
             data["matric_no"] = matric_no
             data["l2_confidence"] = l2_confidence
+            
             data["class_id"] = current_class_id
             log(**data)
-            return matric_no
+            return data["verified"], matric_no, l2_confidence
         except psycopg2.Error as e:
             pg_db.rollback()
             raise Exception(f"Database error: {e}")
         except Exception as e:
             print("Something went wrong", e)
             raise User_Not_Registered("User not registered")
+
 
 def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bool = False, **biodata) -> None:
     """
@@ -223,7 +243,8 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
     biodata["college"] = get_college_id(biodata.get("college"))
 
     if face_flag:
-        new_user_embed = face_recognition.face_encodings(register_new_user_saved_capture, num_jitters=4)
+        new_user_embed = face_recognition.face_encodings(
+            register_new_user_saved_capture, num_jitters=4)
 
         if new_user_embed == []:
             raise No_Face_Detected("No face detected")
@@ -276,7 +297,7 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
         )
 
     pg_db.commit()
-    
+
 
 def log_class_details(class_details: dict) -> None:
     """
@@ -288,7 +309,8 @@ def log_class_details(class_details: dict) -> None:
     Raises:
         Exception: If a database error occurs.
     """
-    class_details["start_time"] = class_details.get("start_time").replace(" ", ":00 ")
+    class_details["start_time"] = class_details.get(
+        "start_time").replace(" ", ":00 ")
     class_details["date"] = datetime.datetime.now().strftime("%Y-%m-%d")
     try:
         pg_cursor.execute(
@@ -299,12 +321,10 @@ def log_class_details(class_details: dict) -> None:
             class_details,
         )
         pg_db.commit()
-        
+
     except psycopg2.Error as e:
         pg_db.rollback()
         raise Exception(f"Database error: {e}")
     global current_class_id
     current_class_id = get_current_class_id(class_details.get("code"))
     return current_class_id
-
-
