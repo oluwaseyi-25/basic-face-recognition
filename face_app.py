@@ -67,7 +67,7 @@ def get_department_id(department: str | None) -> int:
     if department is None:
         return 0
     pg_cursor.execute(
-        "SELECT id FROM departments WHERE name = %s", (department,))
+        "SELECT id FROM departments WHERE code = %s", (department,))
     return pg_cursor.fetchall()[0][0]
 
 def get_college_id(college: str | None) -> int:
@@ -219,12 +219,11 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
         Multiple_Faces_Detected: If multiple faces are detected in the image.
         Invalid_Username: If the username is invalid or empty.
     """
-    biodata["department"] = get_department_id(biodata.get("department"))
+    biodata["department"] = get_department_id(biodata.get("dept"))
     biodata["college"] = get_college_id(biodata.get("college"))
 
     if face_flag:
-        new_user_embed = face_recognition.face_encodings(
-            register_new_user_saved_capture)[0]
+        new_user_embed = face_recognition.face_encodings(register_new_user_saved_capture, num_jitters=4)
 
         if new_user_embed == []:
             raise No_Face_Detected("No face detected")
@@ -232,7 +231,7 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
         elif len(new_user_embed) > 1:
             raise Multiple_Faces_Detected("Multiple faces detected")
 
-        biodata["face_embed"] = repr(list(new_user_embed))
+        biodata["face_embed"] = str(list(new_user_embed[0]))
 
         pg_cursor.execute(
             """
@@ -244,7 +243,7 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
             biodata,
         )
     else:
-        if biodata.get("first_name") is None or biodata.get("name") is None:
+        if biodata.get("name") is None:
             raise Invalid_Username("Username cannot be empty")
 
         if biodata.get("name"):
@@ -278,9 +277,6 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
 
     pg_db.commit()
     
-
-    with open(os.path.join(DB_DIR, f"{biodata.get("first_name")}.pickle"), "wb") as f:
-        pickle.dump(new_user_embed, f)
 
 def log_class_details(class_details: dict) -> None:
     """
