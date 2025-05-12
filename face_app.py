@@ -23,9 +23,7 @@ import face_recognition
 import pickle
 import datetime
 from cv2 import Mat
-from numpy import mat
 import psycopg2
-from psycopg.types import none
 
 
 class No_Face_Detected(Exception):
@@ -279,7 +277,7 @@ def register_new_user(register_new_user_saved_capture: Mat = None, face_flag: bo
     pg_db.commit()
     
 
-    with open(os.path.join(DB_DIR, f"{biodata.get("first_name")}.pickle"), "wb") as f:
+    with open(os.path.join(DB_DIR, f"{biodata.get('first_name')}.pickle"), "wb") as f:
         pickle.dump(new_user_embed, f)
 
 def log_class_details(class_details: dict) -> None:
