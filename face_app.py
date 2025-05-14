@@ -20,13 +20,10 @@ Dependencies:
 
 import os
 import face_recognition
-import pickle
 import datetime
 from cv2 import Mat
-from numpy import mat
 import psycopg2
 from psycopg.types import none
-from tensorflow.python.keras.regularizers import l2
 
 
 class No_Face_Detected(Exception):
