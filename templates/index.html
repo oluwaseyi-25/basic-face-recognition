@@ -159,16 +159,24 @@
                     <th scope="col">Level</th>
                     <th scope="col">Time</th>
                     <th scope="col">Verified</th>
+                    <th scope="col">Image</th>
                 </tr>
             </thead>
             <tbody>
-                {% for name, dept, level, time, verified in attendance_data %}
+                {% for name, dept, level, time, verified, image_url in attendance_data %}
                 <tr>
                     <td><a href="/student/{{ name }}">{{ name[:4] + "/" + name[4:] }}</a></td>
                     <td>{{ dept }}</td>
                     <td>{{ level }}</td>
                     <td>{{ time }}</td>
                     <td>{{ verified }}</td>
+                    <td>
+                        {% if image_url %}
+                        <a href="{{ image_url[1:] }}">{{ image_url[-28:] }}</a>
+                        {% else %}
+                        No Image
+                        {% endif %}
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

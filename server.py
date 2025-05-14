@@ -375,14 +375,14 @@ def attendance():
 
     if course_code == "None":
         cursor.execute("""
-                       SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified 
+                       SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified, a.image_url 
                        FROM attendance_log a
                        LEFT JOIN classes ON a.class_id = classes.id
                        WHERE DATE(log_timestamp) = %s
                        """, (formatted_date,))
     else:
         cursor.execute("""
-                        SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified 
+                        SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified, a.image_url 
                         FROM attendance_log a
                         INNER JOIN classes ON a.class_id = classes.id
                         WHERE DATE(log_timestamp) = %s
@@ -482,6 +482,13 @@ def student_page(student_id):
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
+                    SELECT * from students_biodata
+                    WHERE matric_no = %s
+                   """, (student_id,))
+    
+    student_info = cursor.fetchall()
+
+    cursor.execute("""
                    SELECT c.date, c.course_code, 
                           CASE WHEN a.verified THEN 'Present' ELSE 'Absent' END AS status, 
                           cast(a.log_timestamp::timestamp as time) AS time
@@ -498,7 +505,7 @@ def student_page(student_id):
         student_name = "Unknown Student"
     else:
         # student_name = student_records[0].get('student_name', 'Student')
-        student_name = student_id[:4]+"/"+student_id[4:]
+        student_name = student_info[0].get('first_name', 'Student') + " " + student_info[0].get('last_name', 'Student')
 
     return render_template('student_page.html', student_name=student_name, student_records=student_records)
 
