@@ -100,7 +100,7 @@ def enroll_face(ws: Server, **biodata):
             # Convert the image to a NumPy array and then to BGR format for OpenCV
             image_arr = np.array(image)
             image_arr_bgr = cv2.cvtColor(image_arr, cv2.COLOR_RGB2BGR)
-            biodata["image_filename"] = f"./static/enrolled/{biodata.get('matric_no', 'face_to_verify')}_{datetime.strftime(datetime.now(), format="%Y%m%d_%H%M%S")}.jpg"
+            biodata["image_filename"] = f"./static/enrolled/{biodata.get('matric_no', 'face_to_verify')}_{datetime.strftime(datetime.now(), format='%Y%m%d_%H%M%S')}.jpg"
             image.show()
             face_app.register_new_user(
                 image_arr_bgr, face_flag=True, **biodata)
