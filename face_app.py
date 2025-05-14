@@ -23,7 +23,6 @@ import face_recognition
 import datetime
 from cv2 import Mat
 import psycopg2
-from psycopg.types import none
 
 
 class No_Face_Detected(Exception):
