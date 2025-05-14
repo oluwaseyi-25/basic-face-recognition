@@ -19,10 +19,31 @@ Dependencies:
 """
 
 import os
+from dotenv import load_dotenv
 import face_recognition
 import datetime
 from cv2 import Mat
 import psycopg2
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Retrieve sensitive variables from environment
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
+
+# Update database connection
+pg_db = psycopg2.connect(
+    dbname=os.getenv("DB_NAME"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    host=os.getenv("DB_HOST"),
+    port=os.getenv("DB_PORT")
+)
+pg_cursor = pg_db.cursor()
 
 
 class No_Face_Detected(Exception):
@@ -46,10 +67,6 @@ if not os.path.exists(DB_DIR):
     os.mkdir(DB_DIR)
 
 THRESHOLD = 0.65
-
-
-pg_db = psycopg2.connect("dbname=face_db user=postgres password=1234")
-pg_cursor = pg_db.cursor()
 
 
 current_class_id: int = 0
