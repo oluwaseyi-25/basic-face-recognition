@@ -32,6 +32,7 @@ import face_app
 from datetime import datetime
 from simple_websocket import Server
 import psycopg2
+import psycopg2.extras
 
 
 def base64_to_img(base64_str: str) -> np.matrix:
@@ -276,32 +277,89 @@ def not_found_error(error):
     logging.warning(f"Not Found: {error}")
     return "Not Found", 404
 
-
 @app.route('/')
-def index():
-    return render_template('index.html', selected_date='', course_code='', no_data=False)
+def home():
+    """
+    Render the home page.
 
+    Returns:
+        str: Rendered HTML template for the home page.
+    """
+    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
-@app.route('/attendance', methods=['POST'])
+    cursor.execute("""
+                   SELECT course_code, dept, level, start_time, start_time + interval '1' hour * duration as end_time, duration,  auth_mode, venue, date 
+                   FROM classes
+                   WHERE date IS NOT NULL 
+                   """)
+    all_classes = cursor.fetchall()
+
+    cursor.execute("""
+                   SELECT course_code, dept, level, start_time, start_time + interval '1' hour * duration as end_time, duration,  auth_mode, venue, date 
+                   FROM classes
+                   WHERE date IS NOT NULL 
+                   AND DATE(date) = CURRENT_DATE
+                   """)
+    scheduled_classes = cursor.fetchall()
+
+    conn.close()
+    return render_template('home.html', scheduled_classes=scheduled_classes, all_classes=all_classes)
+
+@app.route('/attendance', methods=['POST', 'GET'])
 def attendance():
-    selected_date = request.form.get('selected_date')
+    """
+    Handle attendance data retrieval based on the selected date and course code.
+
+    This endpoint processes a POST request containing a selected date and course code,
+    queries the database for attendance records matching the criteria, and renders
+    the results on the `index.html` template.
+
+    Request Parameters:
+        - selected_date (str): The date for which attendance data is requested (format: YYYY-MM-DD).
+        - course_code (str): The course code for which attendance data is requested.
+
+    Database Query:
+        - Retrieves matriculation number, department, level, and log timestamp for
+          attendance records matching the selected date and course code.
+
+    Returns:
+        - Renders `index.html` with the attendance data if records are found.
+        - Renders `index.html` with a message indicating no data if no records are found.
+
+    Raises:
+        - psycopg2.DatabaseError: If there is an issue connecting to or querying the database.
+    """
+    selected_date = request.form.get('selected_date') or request.args.get('selected_date')
+    course_code = request.form.get('course_code') or request.args.get('course_code')
+    
+    if selected_date == "None":
+        return render_template('index.html', selected_date=selected_date, course_code=course_code, no_data=True)
+    
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
     formatted_date = selected_date_obj.strftime('%Y-%m-%d')
 
-    course_code = request.form.get('course_code')
-
+    
     conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
     cursor = conn.cursor()
 
-    cursor.execute("""
-                   SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time) 
-                   FROM attendance_log a
-                   INNER JOIN classes ON a.class_id = classes.id
-                   WHERE DATE(log_timestamp) = %s
-                     AND course_code = %s
-                   """, (formatted_date, course_code))
+    if course_code == "None":
+        cursor.execute("""
+                       SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified 
+                       FROM attendance_log a
+                       LEFT JOIN classes ON a.class_id = classes.id
+                       WHERE DATE(log_timestamp) = %s
+                       """, (formatted_date,))
+    else:
+        cursor.execute("""
+                        SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified 
+                        FROM attendance_log a
+                        INNER JOIN classes ON a.class_id = classes.id
+                        WHERE DATE(log_timestamp) = %s
+                            AND course_code = %s
+                        """, (formatted_date, course_code))
+        
     attendance_data = cursor.fetchall()
-
     conn.close()
 
     if not attendance_data:
@@ -365,6 +423,48 @@ def register():
                 "message": f"{data['first_name']+' '+data['last_name']} registered successfully"
             }
         )
+
+
+@app.route('/student/<student_id>', methods=['GET'])
+def student_page(student_id):
+    """
+    Render the student attendance records page.
+
+    Args:
+        student_id (str): The ID of the student whose attendance records are to be displayed.
+
+    Returns:
+        str: Rendered HTML template for the student's attendance records.
+
+    Database Query:
+        - Retrieves attendance records for the given student ID, including date, course code, course title, status, and time marked.
+
+    Raises:
+        - psycopg2.DatabaseError: If there is an issue connecting to or querying the database.
+    """
+    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+
+    cursor.execute("""
+                   SELECT c.date, c.course_code, 
+                          CASE WHEN a.verified THEN 'Present' ELSE 'Absent' END AS status, 
+                          cast(a.log_timestamp::timestamp as time) AS time
+                   FROM attendance_log a
+                   INNER JOIN classes c ON a.class_id = c.id
+                   WHERE a.matric_no = %s
+                   ORDER BY c.date DESC
+                   """, (student_id,))
+
+    student_records = cursor.fetchall()
+    conn.close()
+
+    if not student_records:
+        student_name = "Unknown Student"
+    else:
+        # student_name = student_records[0].get('student_name', 'Student')
+        student_name = student_id[:4]+"/"+student_id[4:]
+
+    return render_template('student_page.html', student_name=student_name, student_records=student_records)
 
 
 @socket.route('/command')
