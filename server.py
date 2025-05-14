@@ -33,6 +33,23 @@ from datetime import datetime
 from simple_websocket import Server
 import psycopg2
 import psycopg2.extras
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Retrieve sensitive variables from environment
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
+DB_PASSWORD = os.getenv('DB_PASSWORD')
+DB_HOST = os.getenv('DB_HOST', 'localhost')
+DB_PORT = os.getenv('DB_PORT', '5432')
+FLASK_SECRET_KEY = os.getenv('FLASK_SECRET_KEY')
+SOCK_PING_INTERVAL = int(os.getenv('SOCK_PING_INTERVAL', 15))
+FLASK_DEBUG = os.getenv('FLASK_DEBUG', 'True') == 'True'
+FLASK_HOST = os.getenv('FLASK_HOST', '0.0.0.0')
+FLASK_PORT = int(os.getenv('FLASK_PORT', 5000))
 
 
 def base64_to_img(base64_str: str) -> np.matrix:
@@ -261,8 +278,9 @@ logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s')
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'secret!'
-app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': 15}
+app.config['SECRET_KEY'] = FLASK_SECRET_KEY
+app.config['SOCK_SERVER_OPTIONS'] = {'ping_interval': SOCK_PING_INTERVAL}
+
 socket = Sock(app)
 
 
@@ -285,7 +303,13 @@ def home():
     Returns:
         str: Rendered HTML template for the home page.
     """
-    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    conn = psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
@@ -340,7 +364,13 @@ def attendance():
     formatted_date = selected_date_obj.strftime('%Y-%m-%d')
 
     
-    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    conn = psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
     cursor = conn.cursor()
 
     if course_code == "None":
@@ -442,7 +472,13 @@ def student_page(student_id):
     Raises:
         - psycopg2.DatabaseError: If there is an issue connecting to or querying the database.
     """
-    conn = psycopg2.connect("dbname=face_db user=postgres password=1234")
+    conn = psycopg2.connect(
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
+    )
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
@@ -498,19 +534,7 @@ def command(ws: Server):
                 else:
                     ws.send(json.dumps({"status": "ERR",
                                         "body": "Invalid command."}))
-            elif isinstance(data, bytes):
-                # Handle binary data (e.g., image)
-                try:
-                    image = Image.open(BytesIO(data))
-                    # image.save("received_image.jpg")  # Save the image as a JPEG file
-                    image.show()
-                    ws.send(json.dumps(
-                        {"status": "OK",
-                         "body": "Image received and saved."}))
-                except Exception as e:
-                    logging.error(f"Error processing image: {e}")
-                    ws.send(json.dumps({"status": "ERR",
-                                        "body": "Invalid image data."}))
+    
             else:
                 ws.send(json.dumps({"status": "ERR",
                                     "body": "Unsupported data type."}))
@@ -525,4 +549,4 @@ def command(ws: Server):
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=FLASK_DEBUG, host=FLASK_HOST, port=FLASK_PORT)
