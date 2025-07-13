@@ -313,14 +313,14 @@ def home():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     cursor.execute("""
-                   SELECT course_code, dept, level, start_time, start_time + interval '1' hour * duration as end_time, duration,  auth_mode, venue, date 
+                   SELECT course_code, dept, level, TO_CHAR(start_time, 'HH12:MI AM') as start_time, TO_CHAR(start_time + interval '1' hour * duration, 'HH12:MI AM') as end_time, duration,  auth_mode, venue, date 
                    FROM classes
                    WHERE date IS NOT NULL 
                    """)
     all_classes = cursor.fetchall()
 
     cursor.execute("""
-                   SELECT course_code, dept, level, start_time, start_time + interval '1' hour * duration as end_time, duration,  auth_mode, venue, date 
+                   SELECT course_code, dept, level, TO_CHAR(start_time, 'HH12:MI AM') as start_time, TO_CHAR(start_time + interval '1' hour * duration, 'HH12:MI AM') as end_time, duration,  auth_mode, venue, date 
                    FROM classes
                    WHERE date IS NOT NULL 
                    AND DATE(date) = CURRENT_DATE
@@ -357,7 +357,7 @@ def attendance():
     selected_date = request.form.get('selected_date') or request.args.get('selected_date')
     course_code = request.form.get('course_code') or request.args.get('course_code')
     
-    if selected_date == "None":
+    if selected_date == "None" or selected_date is None:
         return render_template('index.html', selected_date=selected_date, course_code=course_code, no_data=True)
     
     selected_date_obj = datetime.strptime(selected_date, '%Y-%m-%d')
@@ -373,16 +373,16 @@ def attendance():
     )
     cursor = conn.cursor()
 
-    if course_code == "None":
+    if course_code == "None" or course_code is None:
         cursor.execute("""
-                       SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified, a.image_url 
+                       SELECT a.matric_no, a.department, a.level, TO_CHAR(log_timestamp, 'HH12:MI:SS AM'), a.verified, a.image_url 
                        FROM attendance_log a
                        LEFT JOIN classes ON a.class_id = classes.id
                        WHERE DATE(log_timestamp) = %s
                        """, (formatted_date,))
     else:
         cursor.execute("""
-                        SELECT a.matric_no, a.department, a.level, cast(log_timestamp::timestamp as time), a.verified, a.image_url 
+                        SELECT a.matric_no, a.department, a.level, TO_CHAR(log_timestamp, 'HH12:MI:SS AM'), a.verified, a.image_url 
                         FROM attendance_log a
                         INNER JOIN classes ON a.class_id = classes.id
                         WHERE DATE(log_timestamp) = %s
@@ -487,28 +487,37 @@ def student_page(student_id):
                    """, (student_id,))
     
     student_info = cursor.fetchall()
+    if not student_info:
+        return render_template('student_page.html', no_data=True, student_id=student_id)
+    
+    student_name = student_info[0].get('first_name') + " " + student_info[0].get('middle_name', '') + " "+ student_info[0].get('last_name')
 
     cursor.execute("""
                    SELECT c.date, c.course_code, 
                           CASE WHEN a.verified THEN 'Present' ELSE 'Absent' END AS status, 
-                          cast(a.log_timestamp::timestamp as time) AS time
+                          TO_CHAR(log_timestamp, 'HH12:MI:SS AM') AS time
                    FROM attendance_log a
                    INNER JOIN classes c ON a.class_id = c.id
-                   WHERE a.matric_no = %s
+                   WHERE a.matric_no = %s AND c.date IS NOT NULL
                    ORDER BY c.date DESC
                    """, (student_id,))
 
     student_records = cursor.fetchall()
     conn.close()
 
-    if not student_records:
-        student_name = "Unknown Student"
-    else:
-        # student_name = student_records[0].get('student_name', 'Student')
-        student_name = student_info[0].get('first_name', 'Student') + " " + student_info[0].get('last_name', 'Student')
 
-    return render_template('student_page.html', student_name=student_name, student_records=student_records)
+    return render_template('student_page.html', student_name=student_name, student_records=student_records, no_data=False, student_id=student_id)
 
+
+@app.route('/about')
+def about():
+    """
+    Render the About page.
+
+    Returns:
+        str: Rendered HTML template for the About page.
+    """
+    return render_template('about.html')
 
 @socket.route('/command')
 def command(ws: Server):

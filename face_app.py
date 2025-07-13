@@ -159,14 +159,15 @@ def log(**data) -> None:
     data["verified"] = data.get("verified", False)
     data["scan_timestamp"] = data.get(
         "scan_timestamp", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f"))
+    data["l2_confidence"] = data.get("l2_confidence")
     print(data)
     try:
         pg_cursor.execute(
             """
             INSERT INTO attendance_log 
-            (matric_no, class_id, level, department, verified, scan_timestamp, log_timestamp, image_url)
+            (matric_no, class_id, level, department, verified, scan_timestamp, log_timestamp, image_url, confidence)
             VALUES 
-            (%(matric_no)s, %(class_id)s, %(level)s, %(dept)s, %(verified)s, %(scan_timestamp)s, %(log_timestamp)s, %(image_url)s);
+            (%(matric_no)s, %(class_id)s, %(level)s, %(dept)s, %(verified)s, %(scan_timestamp)s, %(log_timestamp)s, %(image_url)s, %(l2_confidence)s);
             """,
             data,
         )

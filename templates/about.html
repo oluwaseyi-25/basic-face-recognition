@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>About Attendance Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
+            font-family: 'Roboto', sans-serif;
+            background-color: #f8f9fa;
+            color: #212529;
+        }
+
+        .header {
+            text-align: center;
+            margin: 30px 0;
+            color: #343a40;
+        }
+
+        .container {
+            margin-top: 2rem;
+            flex: 1;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        footer {
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            margin-top: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <header class="bg-dark text-white py-3">
+        <div class="container d-flex justify-content-between align-items-center">
+            <h1 class="h3">Attendance Tracker</h1>
+            <nav>
+                <a href="/" class="text-white me-3">Home</a>
+                <a href="/attendance" class="text-white me-3">Attendance</a>
+                <a href="/about" class="text-white">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <div class="container">
+        <h1 class="header">About Attendance Tracker</h1>
+        <p>
+            Attendance Tracker is a modern, biometric-based attendance management system designed to streamline and secure the process of tracking attendance in academic and corporate environments. By leveraging facial recognition technology and IoT integration, the system ensures accuracy, efficiency, and security.
+        </p>
+        <h2>Features</h2>
+        <ul>
+            <li>Real-time face recognition for attendance logging.</li>
+            <li>Integration with IoT devices for decentralized tracking.</li>
+            <li>Secure storage of attendance records and user data.</li>
+            <li>User-friendly web interface for administrators and users.</li>
+            <li>Comprehensive reporting and data export capabilities.</li>
+        </ul>
+        <h2>Contact Us</h2>
+        <p>
+            For inquiries or support, please contact us at <a href="mailto:support@attendancetracker.com">support@attendancetracker.com</a>.
+        </p>
+    </div>
+
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center">
+            <p>&copy; 2025 Attendance Tracker. All rights reserved.</p>
+            <p><a href="https://github.com/oluwaseyi-25" class="text-white">Contact Us</a></p>
+        </div>
+    </footer>
+</body>
+
+</html>

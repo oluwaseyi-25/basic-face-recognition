@@ -7,7 +7,14 @@
     <title>Attendance Tracker Sheet</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
+        html,
         body {
+            height: 100%;
+        }
+
+        body {
+            display: flex;
+            flex-direction: column;
             font-family: 'Roboto', sans-serif;
             background-color: #f8f9fa;
             color: #212529;
@@ -67,6 +74,7 @@
 
         .container {
             margin-top: 2rem;
+            flex: 1;
         }
 
         table {
@@ -75,13 +83,27 @@
             overflow: hidden;
         }
 
-        th, td {
+        th,
+        td {
             text-align: center;
             vertical-align: middle;
         }
 
         .alert {
             text-align: center;
+        }
+
+        header {
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        footer {
+            position: relative;
+            bottom: 0;
+            width: 100%;
+            margin-top: auto;
         }
     </style>
     <script>
@@ -123,9 +145,20 @@
 </head>
 
 <body>
-    <div class="jumbotron text-center">
+    <header class="bg-dark text-white py-3">
+        <div class="container d-flex justify-content-between align-items-center">
+            <h1 class="h3">Attendance Tracker</h1>
+            <nav>
+                <a href="/" class="text-white me-3">Home</a>
+                <a href="/attendance" class="text-white me-3">Attendance</a>
+                <a href="/about" class="text-white">About</a>
+            </nav>
+        </div>
+    </header>
+
+    <!-- <div class="jumbotron text-center">
         <h1 class="display-4">Attendance Tracker Sheet</h1>
-    </div>
+    </div> -->
     <hr>
 
     <form action="/attendance" method="POST" id="attn-form">
@@ -142,14 +175,15 @@
         <div class="alert alert-warning" role="alert">
             No attendance data available for the selected date.
         </div>
-        {% endif %}
+        {% else %}
         <span style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
             <h2>Attendance Data Table
                 {% if course_code %}
                 for {{ course_code }} on {{ selected_date }}
                 {% endif %}
             </h2>
-            <button onclick="exportTableToCSV('{{ course_code }}_{{ selected_date }}.csv')" id="export">Export CSV</button>
+            <button onclick="exportTableToCSV('{{ course_code }}_{{ selected_date }}.csv')" id="export">Export
+                CSV</button>
         </span>
         <table class="table" id="attendance-table">
             <thead>
@@ -181,29 +215,15 @@
                 {% endfor %}
             </tbody>
         </table>
+        {% endif %}
     </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    <footer class="bg-dark text-white py-3 mt-5">
+        <div class="container text-center">
+            <p>&copy; 2025 Attendance Tracker. All rights reserved.</p>
+            <p><a href="https://github.com/oluwaseyi-25" class="text-white">Contact Us</a></p>
+        </div>
+    </footer>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/js/bootstrap.bundle.min.js"
         integrity="sha384-HwwvtgBNo3bZJJLYd8oVXjrBZt8cqVSpeBNS5n7C8IVInixGAoxmnlMuBnhbgrkm"
