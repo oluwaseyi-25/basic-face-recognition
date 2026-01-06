@@ -103,9 +103,6 @@ This project implements a Flask-based server with WebSocket support for real-tim
 - If face recognition is slow, ensure your server has sufficient CPU resources and consider using GPU-accelerated libraries.
 - For issues with pgvector, confirm the extension is installed and available in your database.
 
-## License
-This project is licensed under the MIT License. See the LICENSE file for details.
-
 ## Acknowledgments
 - Flask for the web framework.
 - PostgreSQL and pgvector for the database and vector search.
